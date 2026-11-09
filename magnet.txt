@@ -1,0 +1,279 @@
+/*
+ * Standalone MPU-6500 / MPU-9250 test for Raspberry Pi Pico (RP2040).
+ * Requires Raspberry Pi Pico SDK; link pico_stdlib and hardware_i2c.
+ * Enable USB stdio in the SDK project to see readings on USB serial.
+ *
+ * Wiring: GP14 -> SDA, GP15 -> SCL, 3V3 -> sensor supply, GND -> GND.
+ * Disconnect any previous LED or touch circuit from GP14/GP15.
+ * I2C pullups must go to 3.3 V. Use breakout pullups or external 4.7k.
+ * If CS/nCS is exposed, hold it high (3.3 V) to select I2C.
+ * AD0 low: address 0x68; AD0 high: 0x69. Both are checked.
+ *
+ * Prints acceleration (g), angular velocity (degrees/s), and die
+ * temperature (degrees C), and MPU-9250 magnetic field (microtesla).
+ * Uses the AK8963 factory sensitivity values, but does not perform
+ * hard/soft iron calibration or calculate compass heading.
+ */
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include "pico/stdlib.h"
+#include "hardware/i2c.h"
+
+#define SENSOR_I2C       i2c1
+#define SDA_PIN          14u
+#define SCL_PIN          15u
+#define I2C_BAUD         100000u
+#define I2C_TIMEOUT_US   10000u
+
+#define REG_SMPLRT_DIV   0x19u
+#define REG_CONFIG       0x1Au
+#define REG_GYRO_CONFIG  0x1Bu
+#define REG_ACCEL_CONFIG 0x1Cu
+#define REG_ACCEL_CFG2   0x1Du
+#define REG_ACCEL_XOUT_H 0x3Bu
+#define REG_PWR_MGMT_1   0x6Bu
+#define REG_PWR_MGMT_2   0x6Cu
+#define REG_WHO_AM_I     0x75u
+#define REG_INT_PIN_CFG  0x37u
+#define REG_USER_CTRL    0x6Au
+
+#define MAG_ADDRESS     0x0Cu
+#define MAG_WIA         0x00u
+#define MAG_ST1         0x02u
+#define MAG_HXL         0x03u
+#define MAG_CNTL1       0x0Au
+#define MAG_CNTL2       0x0Bu
+#define MAG_ASAX        0x10u
+
+static uint8_t sensor_address;
+static uint8_t sensor_identity;
+static bool magnetometer_enabled;
+static float mag_adjustment[3];
+
+static bool read_regs(uint8_t address, uint8_t reg,
+                      uint8_t *data, size_t count)
+{
+    // Keep the bus active for the repeated-start read transaction.
+    int written = i2c_write_timeout_us(SENSOR_I2C, address, &reg, 1,
+                                       true, I2C_TIMEOUT_US);
+    if (written != 1) return false;
+    int received = i2c_read_timeout_us(SENSOR_I2C, address, data, count,
+                                       false, I2C_TIMEOUT_US);
+    return received == (int)count;
+}
+
+static bool write_at(uint8_t address, uint8_t reg, uint8_t value)
+{
+    uint8_t data[2] = {reg, value};
+    return i2c_write_timeout_us(SENSOR_I2C, address, data, 2,
+                                false, I2C_TIMEOUT_US) == 2;
+}
+
+static bool write_reg(uint8_t reg, uint8_t value)
+{
+    return write_at(sensor_address, reg, value);
+}
+
+static bool find_sensor(void)
+{
+    const uint8_t addresses[] = {0x68, 0x69};
+    for (size_t i = 0; i < sizeof(addresses); ++i) {
+        uint8_t id = 0;
+        if (!read_regs(addresses[i], REG_WHO_AM_I, &id, 1)) continue;
+
+        printf("Address 0x%02X: WHO_AM_I = 0x%02X\n",
+               (unsigned)addresses[i], (unsigned)id);
+        if (id == 0x70 || id == 0x71) {
+            sensor_address = addresses[i];
+            sensor_identity = id;
+            printf("Detected %s\n", id == 0x70 ? "MPU-6500" : "MPU-9250");
+            return true;
+        }
+        printf("Unsupported identity; expected 0x70 or 0x71.\n");
+    }
+    return false;
+}
+
+static bool setup_sensor(void)
+{
+    if (!write_reg(REG_PWR_MGMT_1, 0x80)) return false; // Reset.
+    sleep_ms(100);
+    if (!write_reg(REG_PWR_MGMT_1, 0x01)) return false; // Wake, auto PLL.
+    sleep_ms(100);
+
+    if (!write_reg(REG_PWR_MGMT_2, 0x00)) return false; // All axes enabled.
+    if (!write_reg(REG_CONFIG, 0x03)) return false;    // Gyro low-pass filter.
+    if (!write_reg(REG_GYRO_CONFIG, 0x00)) return false; // +/-250 degrees/s.
+    if (!write_reg(REG_ACCEL_CONFIG, 0x00)) return false; // +/-2 g.
+    if (!write_reg(REG_ACCEL_CFG2, 0x03)) return false; // Accel low-pass filter.
+    if (!write_reg(REG_SMPLRT_DIV, 9)) return false;   // 1kHz / (9+1) = 100Hz.
+    sleep_ms(100);
+    return true;
+}
+
+static int16_t signed_be16(const uint8_t *data)
+{
+    uint16_t value = ((uint16_t)data[0] << 8) | data[1];
+    // Explicit signed conversion avoids implementation-defined narrowing.
+    int32_t signed_value = value;
+    if (value & 0x8000u) signed_value -= 65536;
+    return (int16_t)signed_value;
+}
+
+static int16_t signed_le16(const uint8_t *data)
+{
+    uint8_t reversed[2] = {data[1], data[0]};
+    return signed_be16(reversed);
+}
+
+static bool setup_magnetometer(void)
+{
+    // Expose the internal AK8963 directly on the Pico's I2C bus.
+    if (!write_reg(REG_USER_CTRL, 0x00)) return false;
+    if (!write_reg(REG_INT_PIN_CFG, 0x02)) return false;
+    sleep_ms(10);
+
+    uint8_t id = 0;
+    if (!read_regs(MAG_ADDRESS, MAG_WIA, &id, 1)) {
+        printf("AK8963 did not respond at 0x0C.\n");
+        return false;
+    }
+    printf("AK8963 WIA = 0x%02X (expected 0x48)\n", (unsigned)id);
+    if (id != 0x48) return false;
+
+    if (!write_at(MAG_ADDRESS, MAG_CNTL2, 0x01)) return false;
+    sleep_ms(10);
+    if (!write_at(MAG_ADDRESS, MAG_CNTL1, 0x00)) return false;
+    sleep_ms(10);
+    if (!write_at(MAG_ADDRESS, MAG_CNTL1, 0x0F)) return false;
+    sleep_ms(10); // Fuse ROM mode to read factory sensitivity adjustment.
+
+    uint8_t asa[3];
+    bool fuse_ok = read_regs(MAG_ADDRESS, MAG_ASAX, asa, sizeof(asa));
+    // Always leave fuse mode, even if the read failed.
+    if (!write_at(MAG_ADDRESS, MAG_CNTL1, 0x00)) return false;
+    sleep_ms(10);
+    if (!fuse_ok) return false;
+
+    for (size_t i = 0; i < 3; ++i) {
+        if (asa[i] == 0 || asa[i] == 255) {
+            printf("Invalid AK8963 factory sensitivity data.\n");
+            return false;
+        }
+        mag_adjustment[i] = ((float)asa[i] - 128.0f) / 256.0f + 1.0f;
+    }
+
+    // 16-bit output, continuous measurement mode 2 (100 Hz).
+    if (!write_at(MAG_ADDRESS, MAG_CNTL1, 0x16)) return false;
+    sleep_ms(20);
+    return true;
+}
+
+typedef enum {
+    MAG_OK, MAG_NOT_READY, MAG_OVERFLOW, MAG_IO_ERROR
+} mag_status_t;
+
+static mag_status_t read_magnetometer(float field[3])
+{
+    uint8_t status;
+    if (!read_regs(MAG_ADDRESS, MAG_ST1, &status, 1)) return MAG_IO_ERROR;
+    if (!(status & 0x01)) return MAG_NOT_READY;
+
+    // AK8963 data is little-endian. Read through ST2 to release its latch.
+    uint8_t data[7];
+    if (!read_regs(MAG_ADDRESS, MAG_HXL, data, sizeof(data))) {
+        return MAG_IO_ERROR;
+    }
+    if (data[6] & 0x08) return MAG_OVERFLOW;
+
+    for (size_t i = 0; i < 3; ++i) {
+        field[i] = signed_le16(&data[2 * i]) * 0.15f * mag_adjustment[i];
+    }
+    return MAG_OK;
+}
+
+static bool print_reading(void)
+{
+    uint8_t data[14];
+    if (!read_regs(sensor_address, REG_ACCEL_XOUT_H, data, sizeof(data))) {
+        return false;
+    }
+
+    float ax = signed_be16(&data[0]) / 16384.0f;
+    float ay = signed_be16(&data[2]) / 16384.0f;
+    float az = signed_be16(&data[4]) / 16384.0f;
+    float temperature = signed_be16(&data[6]) / 333.87f + 21.0f;
+    float gx = signed_be16(&data[8]) / 131.0f;
+    float gy = signed_be16(&data[10]) / 131.0f;
+    float gz = signed_be16(&data[12]) / 131.0f;
+
+    printf("Accel[g] X=%+.3f Y=%+.3f Z=%+.3f | "
+           "Gyro[deg/s] X=%+.2f Y=%+.2f Z=%+.2f | Temp=%.2f C",
+           (double)ax, (double)ay, (double)az,
+           (double)gx, (double)gy, (double)gz, (double)temperature);
+    if (magnetometer_enabled) {
+        float field[3];
+        switch (read_magnetometer(field)) {
+        case MAG_OK:
+            printf(" | Mag[uT] X=%+.2f Y=%+.2f Z=%+.2f",
+                   (double)field[0], (double)field[1], (double)field[2]);
+            break;
+        case MAG_NOT_READY:
+            printf(" | Mag: waiting for new sample");
+            break;
+        case MAG_OVERFLOW:
+            printf(" | Mag: overflow (move magnet farther away)");
+            break;
+        case MAG_IO_ERROR:
+            printf(" | Mag: I2C error; restarting sensors\n");
+            return false;
+        }
+    } else {
+        printf(" | Mag: unavailable");
+    }
+    printf("\n");
+    return true;
+}
+
+int main(void)
+{
+    stdio_init_all();
+    i2c_init(SENSOR_I2C, I2C_BAUD);
+    gpio_set_function(SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(SCL_PIN, GPIO_FUNC_I2C);
+    gpio_pull_up(SDA_PIN);
+    gpio_pull_up(SCL_PIN);
+
+    sleep_ms(2000); // Brief opportunity to open USB serial; never waits for it.
+    printf("\nMPU test: GP14 SDA, GP15 SCL, I2C1 at 100kHz\n");
+
+    while (true) {
+        magnetometer_enabled = false;
+        if (!find_sensor()) {
+            printf("No supported MPU detected. Check power, SDA/SCL, CS, AD0 and pullups.\n");
+            sleep_ms(1000);
+            continue;
+        }
+        if (!setup_sensor()) {
+            printf("Sensor initialization failed; retrying.\n");
+            sleep_ms(1000);
+            continue;
+        }
+
+        if (sensor_identity == 0x71) {
+            magnetometer_enabled = setup_magnetometer();
+            printf(magnetometer_enabled ? "Magnetometer ready.\n"
+                                        : "Magnetometer setup failed; accel/gyro still available.\n");
+        } else {
+            printf("MPU-6500 has no internal magnetometer.\n");
+        }
+        printf("Ready. Move the sensor to change the readings.\n");
+        while (print_reading()) {
+            sleep_ms(100); // Print 10 readings/s; sensor samples at 100Hz.
+        }
+        printf("I2C read failed; reconnecting.\n");
+        sleep_ms(1000);
+    }
+}
