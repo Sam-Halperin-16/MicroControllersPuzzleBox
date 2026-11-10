@@ -40,6 +40,7 @@ pico_sdk_init()
 add_executable(puzzle_box
     puzzle_box.cpp
     seven_segment.cpp
+    accelerometer.cpp
 )
 
 pico_set_program_name(puzzle_box "puzzle_box")

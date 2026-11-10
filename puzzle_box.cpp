@@ -2,6 +2,7 @@
 #include <cstdio>
 #include "pico/stdlib.h"
 #include "seven_segment.h"
+#include "accelerometer.h"
 
 namespace {
 // Central application pin assignments; reserve these for the display.
