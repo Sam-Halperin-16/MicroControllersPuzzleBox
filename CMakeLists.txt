@@ -42,6 +42,7 @@ add_executable(puzzle_box
     lib/gpio_expander.cpp
     lib/seven_segment.cpp
     puzzle_box.cpp
+    accelerometer.cpp
     state_machines/morse_leds.cpp
     state_machines/shake_vibrate.cpp
     state_machines/system.cpp
