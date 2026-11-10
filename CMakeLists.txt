@@ -38,9 +38,14 @@ pico_sdk_init()
 # Compile the application AND the independent display driver.
 # Header files are included by the source files.
 add_executable(puzzle_box
+    globals.cpp
+    lib/gpio_expander.cpp
+    lib/seven_segment.cpp
     puzzle_box.cpp
-    seven_segment.cpp
     accelerometer.cpp
+    state_machines/morse_leds.cpp
+    state_machines/shake_vibrate.cpp
+    state_machines/system.cpp
 )
 
 pico_set_program_name(puzzle_box "puzzle_box")
@@ -50,6 +55,7 @@ pico_set_program_version(puzzle_box "0.1")
 # No hardware_i2c library is needed for this TM1637 driver.
 target_link_libraries(puzzle_box
     pico_stdlib
+    pico_rand
 )
 
 # Send diagnostic messages over USB serial.
