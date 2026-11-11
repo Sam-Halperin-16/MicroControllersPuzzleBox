@@ -12,8 +12,8 @@ enum class ShakeVibrateState {
 class ShakeVibrateStateMachine : public StateMachine<ShakeVibrateState> {
 protected:
     std::uint8_t code;
-    std::uint32_t vibrateStartTime;
-    bool vibrating;
+    std::uint32_t vibrateStartTime = 0;
+    bool vibrating = false;
 public:
     ShakeVibrateStateMachine(std::uint8_t code) : StateMachine<ShakeVibrateState>(ShakeVibrateState::Waiting), code(code) {}
     void tick() override;

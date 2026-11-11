@@ -25,7 +25,9 @@ constexpr ButtonMapping BUTTONS[] = {
     {-1, ir_receiver::Button::Digit, 7},
     {-1, ir_receiver::Button::Digit, 8},
     {-1, ir_receiver::Button::Digit, 9},
-    {-1, ir_receiver::Button::Ok, 0}
+    {-1, ir_receiver::Button::Ok, 0},
+    {-1, ir_receiver::Button::Hash, 0},
+    {-1, ir_receiver::Button::Star, 0}
 };
 
 // Small single-core interrupt-to-main-loop queue. Drop new presses if full.

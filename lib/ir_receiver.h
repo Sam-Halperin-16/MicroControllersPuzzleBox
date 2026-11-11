@@ -7,7 +7,9 @@ namespace ir_receiver {
 
 enum class Button {
     Digit,
-    Ok
+    Ok,
+    Hash,
+    Star
 };
 
 struct Event {

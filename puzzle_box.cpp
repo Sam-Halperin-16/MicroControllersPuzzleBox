@@ -26,11 +26,7 @@ int main() {
         systemStateMachine.tick();
         ir_receiver::Event event;
         while (ir_receiver::poll(event)) {
-            if (event.button == ir_receiver::Button::Digit) {
-                systemStateMachine.onIrDigit(event.digit);
-            } else if (event.button == ir_receiver::Button::Ok) {
-                systemStateMachine.onIrOk();
-            }
+            systemStateMachine.onIrEvent(event);
         }
     }
 
