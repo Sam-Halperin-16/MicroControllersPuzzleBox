@@ -19,6 +19,9 @@ bool init(unsigned int clk_pin = 14, unsigned int dio_pin = 15,
 // Returns false if uninitialized, invalid, or the display does not ACK.
 bool set_number(int digit1, int digit2, int digit3, int digit4);
 
+// Blank or restore the display without changing its digits or brightness.
+bool set_visible(bool visible);
+
 }  // namespace seven_segment
 
 #endif

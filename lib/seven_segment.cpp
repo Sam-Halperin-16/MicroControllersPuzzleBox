@@ -15,6 +15,7 @@ constexpr uint32_t BIT_DELAY_US = 10;
 unsigned int clk_gpio = 14;
 unsigned int dio_gpio = 15;
 bool initialized = false;
+uint8_t display_brightness = 3;
 
 bool exposed_pico_gpio(unsigned int pin) {
     // Pico 1 exposes GP0..GP22 and GP26..GP28 on its main headers.
@@ -134,7 +135,18 @@ bool init(unsigned int clk_pin, unsigned int dio_pin, int brightness) {
     // 0x88 = display ON; low three bits select brightness.
     const uint8_t control[] = {static_cast<uint8_t>(0x88 | brightness)};
     initialized = send_bytes(control, sizeof(control));
+    display_brightness = static_cast<uint8_t>(brightness);
     return initialized;
+}
+
+bool set_visible(bool visible) {
+    if (!initialized) {
+        return false;
+    }
+    const uint8_t control[] = {
+        static_cast<uint8_t>((visible ? 0x88 : 0x80) | display_brightness)
+    };
+    return send_bytes(control, sizeof(control));
 }
 
 bool set_number(int digit1, int digit2, int digit3, int digit4) {

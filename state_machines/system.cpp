@@ -15,6 +15,7 @@ SystemStateMachine::SystemStateMachine() : StateMachine<SystemState>(SystemState
     // Spoken
     // 0-9
     finalCode[3] = get_rand_32() % 10; // Random number between 0 and 9
+    screenStateMachine = new ScreenStateMachine(finalCode);
 
     // Initialize the active state machines to a list of active state machines
     // Morse LEDs
@@ -25,14 +26,37 @@ SystemStateMachine::SystemStateMachine() : StateMachine<SystemState>(SystemState
 }
 
 void SystemStateMachine::tick() {
-    // Implement the system state machine logic here
+    if (currentState != SystemState::Active && currentState != SystemState::Frozen) {
+        return;
+    }
+    // The screen must keep ticking while the puzzles are frozen for a timeout.
+    screenStateMachine->tick();
+    if (screenStateMachine->getState() == ScreenState::Countdown ||
+        screenStateMachine->getState() == ScreenState::Completed) {
+        setState(SystemState::Frozen);
+        return;
+    }
+    setState(SystemState::Active);
     if (morseLedsStateMachine != nullptr) {
         morseLedsStateMachine->tick();
     }
     if (shakeVibrateStateMachine != nullptr) {
         shakeVibrateStateMachine->tick();
     }
-    if (currentState == SystemState::Active) {
-        //
+}
+
+void SystemStateMachine::onIrDigit(std::uint8_t digit) {
+    if (currentState == SystemState::Active || currentState == SystemState::Frozen) {
+        screenStateMachine->onIrDigit(digit);
+    }
+}
+
+void SystemStateMachine::onIrOk() {
+    if (currentState == SystemState::Active || currentState == SystemState::Frozen) {
+        screenStateMachine->onIrOk();
+        if (screenStateMachine->getState() == ScreenState::Countdown ||
+            screenStateMachine->getState() == ScreenState::Completed) {
+            setState(SystemState::Frozen);
+        }
     }
 }

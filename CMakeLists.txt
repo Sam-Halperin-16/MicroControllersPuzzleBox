@@ -41,11 +41,13 @@ add_executable(puzzle_box
     globals.cpp
     lib/gpio_expander.cpp
     lib/seven_segment.cpp
+    lib/ir_receiver.cpp
     puzzle_box.cpp
     accelerometer.cpp
     state_machines/morse_leds.cpp
     state_machines/shake_vibrate.cpp
     state_machines/system.cpp
+    state_machines/screen.cpp
 )
 
 pico_set_program_name(puzzle_box "puzzle_box")
