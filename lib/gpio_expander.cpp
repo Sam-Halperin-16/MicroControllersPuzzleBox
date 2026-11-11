@@ -1,11 +1,12 @@
 #include "gpio_expander.h"
+#include <cstdint>
 GpioExpander::GpioExpander() {}
 
-void GpioExpander::setPin(std::uint8_t pin, std::uint8_t value) {
+void GpioExpander::setPin(std::uint8_t pin, bool value) {
     pins[pin] = value;
 }
 
-std::uint8_t GpioExpander::getPin(std::uint8_t pin) {
+bool GpioExpander::getPin(std::uint8_t pin) {
     return pins[pin];
 }
 

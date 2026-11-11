@@ -29,6 +29,9 @@ void SystemStateMachine::tick() {
     if (morseLedsStateMachine != nullptr) {
         morseLedsStateMachine->tick();
     }
+    if (shakeVibrateStateMachine != nullptr) {
+        shakeVibrateStateMachine->tick();
+    }
     if (currentState == SystemState::Active) {
         //
     }

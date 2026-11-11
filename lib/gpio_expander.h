@@ -5,12 +5,12 @@
 
 class GpioExpander {
 private:
-    std::uint8_t pins[16]; // Assuming 16 pins for the GPIO expander
-    std::uint8_t previousPins[16]; // Store the previous pin states for comparison
+    bool pins[16]; // Assuming 16 pins for the GPIO expander
+    bool previousPins[16]; // Store the previous pin states for comparison
 public:
     GpioExpander();
-    void setPin(std::uint8_t pin, std::uint8_t value);
-    std::uint8_t getPin(std::uint8_t pin);
+    void setPin(std::uint8_t pin, bool value);
+    bool getPin(std::uint8_t pin);
     void update();
 };
 

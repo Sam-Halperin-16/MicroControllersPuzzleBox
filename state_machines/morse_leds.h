@@ -2,6 +2,7 @@
 #define MORSE_LEDS_H
 
 #include "state_machine.h"
+#include <cstdint>
 
 enum class MorseLedsState {
     Off,

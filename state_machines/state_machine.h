@@ -1,3 +1,5 @@
+#ifndef STATE_MACHINE_H
+#define STATE_MACHINE_H
 /**
  * State machine header file
  * Author: Micah Henney, Samuel Halperin, Noah Billman
@@ -24,3 +26,5 @@ protected:
 
     StateType currentState;
 };
+
+#endif // STATE_MACHINE_H

@@ -4,7 +4,7 @@
 #include "globals.h"
 
 MorseLedsStateMachine::MorseLedsStateMachine() : StateMachine<MorseLedsState>(MorseLedsState::Off) {
-    startTime = 0;
+    startTime = time_us_32();
 }
 
 namespace MorseCodeData {
@@ -64,5 +64,5 @@ void MorseLedsStateMachine::update_leds(std::uint16_t morseCode, std::uint8_t cu
     // Update the LED state based on the current bit of the Morse code
     std::uint8_t bit = (morseCode >> (MorseCodeData::morseCodeLengths[currentBit] - 1 - currentBit)) & 0x01;
     std::uint8_t ledId = MorseCodeData::LED_ID[currentBit];
-    gpio_expander.setPin(ledId, bit);
+    gpio_expander.setPin(ledId, bit != 0);
 }
