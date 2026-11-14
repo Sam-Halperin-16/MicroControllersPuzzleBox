@@ -45,6 +45,7 @@ add_executable(puzzle_box
     lib/seven_segment.cpp
     lib/ir_receiver.cpp
     lib/drawer_io.cpp
+    lib/accelerometer.cpp
     puzzle_box.cpp
     state_machines/morse_leds.cpp
     state_machines/shake_vibrate.cpp
