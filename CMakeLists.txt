@@ -1,4 +1,6 @@
 # Generated Cmake Pico project file
+#cmake --build build
+#cmake -B build
 
 cmake_minimum_required(VERSION 3.13)
 
@@ -44,7 +46,6 @@ add_executable(puzzle_box
     lib/ir_receiver.cpp
     lib/drawer_io.cpp
     puzzle_box.cpp
-    # accelerometer.cpp
     state_machines/morse_leds.cpp
     state_machines/shake_vibrate.cpp
     state_machines/system.cpp
@@ -60,6 +61,7 @@ pico_set_program_version(puzzle_box "0.1")
 target_link_libraries(puzzle_box
     pico_stdlib
     pico_rand
+    hardware_i2c
 )
 
 # Send diagnostic messages over USB serial.
