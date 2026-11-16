@@ -2,8 +2,10 @@
 #include "pico/time.h"
 #include <stdio.h>
 #include "lib/accelerometer.h"
+#include "pico/stdlib.h"
 
 const std::uint32_t VIBRATE_DURATION_US = 500000; // 500ms in microseconds
+const std::uint8_t vibratingpin = 9; // GPIO pin for vibration motor
 bool initializedAccel = false;
 
 void ShakeVibrateStateMachine::tick() {
@@ -34,8 +36,7 @@ void ShakeVibrateStateMachine::tick() {
         if(((elapsedTime / (VIBRATE_DURATION_US)) % 2 == 0) != vibrating) {
             // Toggle the vibration state
             vibrating = !vibrating;
-            // setVibrate(vibrating);
-            // set_gpio(vibratingpin, vibrating); ?
+            gpio_put(vibratingpin, vibrating);
         }
     }
 }
