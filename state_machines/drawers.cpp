@@ -2,17 +2,11 @@
 #include "lib/drawer_io.h"
 #include "pico/rand.h"
 #include "pico/time.h"
+#include "matching_config.h"
+
+using namespace matching_config;
 
 namespace {
-// Initial tuning values; calibrate for the potentiometer and speaker.
-constexpr unsigned int MIN_HZ = 400;
-constexpr unsigned int MAX_HZ = 1600;
-constexpr unsigned int MATCH_TOLERANCE_HZ = 20;
-constexpr int POT_DEADBAND = 8;
-constexpr std::uint64_t SETTLE_US = 200000;
-constexpr std::uint64_t TONE_US = 500000;
-constexpr std::uint64_t GAP_US = 150000;
-
 unsigned int randomTarget() {
     return MIN_HZ + get_rand_32() % (MAX_HZ - MIN_HZ + 1);
 }
@@ -63,7 +57,7 @@ void ToneDrawerStateMachine::tick() {
         return;
     }
     std::uint16_t value;
-    if (!drawer_io::readPotentiometer(value) || value > 4095) {
+    if (!drawer_io::readPotentiometer(value) || value > ADC_MAX) {
         suspend();
         return;
     }
@@ -72,7 +66,7 @@ void ToneDrawerStateMachine::tick() {
     if (toneState == ToneState::Waiting || change >= POT_DEADBAND || change <= -POT_DEADBAND) {
         drawer_io::stopTone();
         lastValue = value;
-        currentFrequency = MIN_HZ + static_cast<unsigned int>(value) * (MAX_HZ - MIN_HZ) / 4095;
+        currentFrequency = MIN_HZ + static_cast<unsigned int>(value) * (MAX_HZ - MIN_HZ) / ADC_MAX;
         toneState = ToneState::Settling;
         phaseStartTime = now;
         return;

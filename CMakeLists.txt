@@ -52,6 +52,7 @@ add_executable(puzzle_box
     state_machines/system.cpp
     state_machines/screen.cpp
     state_machines/drawers.cpp
+    state_machines/wire_matching.cpp
 )
 
 pico_set_program_name(puzzle_box "puzzle_box")
@@ -63,6 +64,8 @@ target_link_libraries(puzzle_box
     pico_stdlib
     pico_rand
     hardware_i2c
+    hardware_adc
+    hardware_pwm
 )
 
 # Send diagnostic messages over USB serial.

@@ -6,6 +6,7 @@
 #include "shake_vibrate.h"
 #include "screen.h"
 #include "drawers.h"
+#include "wire_matching.h"
 #include "lib/ir_receiver.h"
 #include <cstdint>
 
@@ -24,6 +25,7 @@ protected:
     ScreenStateMachine* screenStateMachine;
     TouchDrawerStateMachine* touchDrawerStateMachine;
     ToneDrawerStateMachine* toneDrawerStateMachine;
+    WireMatchingStateMachine wireMatchingStateMachine;
     std::uint8_t finalCode[4];
     std::uint8_t resetSequence = 0;
     void generateFinalCode();

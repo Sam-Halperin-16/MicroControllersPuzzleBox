@@ -36,10 +36,9 @@ void SystemStateMachine::tick() {
     if (currentState != SystemState::Active && currentState != SystemState::Frozen) {
         return;
     }
-    // The screen must keep ticking while the puzzles are frozen for a timeout.
+    // An incorrect-code timeout blocks IR entry, not the independent puzzles.
     screenStateMachine->tick();
-    if (screenStateMachine->getState() == ScreenState::Countdown ||
-        screenStateMachine->getState() == ScreenState::Completed) {
+    if (screenStateMachine->getState() == ScreenState::Completed) {
         if (currentState != SystemState::Frozen) {
             toneDrawerStateMachine->suspend();
         }
@@ -49,6 +48,7 @@ void SystemStateMachine::tick() {
     setState(SystemState::Active);
     touchDrawerStateMachine->tick();
     toneDrawerStateMachine->tick();
+    wireMatchingStateMachine.tick();
     if (morseLedsStateMachine != nullptr) {
         morseLedsStateMachine->tick();
     }
@@ -68,8 +68,7 @@ void SystemStateMachine::onIrOk() {
     resetSequence = 0;
     if (currentState == SystemState::Active || currentState == SystemState::Frozen) {
         screenStateMachine->onIrOk();
-        if (screenStateMachine->getState() == ScreenState::Countdown ||
-            screenStateMachine->getState() == ScreenState::Completed) {
+        if (screenStateMachine->getState() == ScreenState::Completed) {
             toneDrawerStateMachine->suspend();
             setState(SystemState::Frozen);
         }
@@ -89,6 +88,7 @@ void SystemStateMachine::reset() {
         gpio_expander.setPin(pin, false);
     }
     gpio_expander.update();
+    wireMatchingStateMachine.reset();
     resetSequence = 0;
     setState(SystemState::Active);
     screenStateMachine->tick();
