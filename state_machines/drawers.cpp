@@ -3,12 +3,20 @@
 #include "pico/rand.h"
 #include "pico/time.h"
 #include "matching_config.h"
+#include "lib/tone_encoder.h"
 
 using namespace matching_config;
 
 namespace {
 unsigned int randomTarget() {
     return MIN_HZ + get_rand_32() % (MAX_HZ - MIN_HZ + 1);
+}
+
+unsigned int newTarget(unsigned int previous) {
+    static_assert(MAX_HZ > MIN_HZ, "Tone matching needs at least two target frequencies");
+    // Select from every frequency except the old target, without retry loops.
+    const auto candidate = MIN_HZ + get_rand_32() % (MAX_HZ - MIN_HZ);
+    return candidate >= previous ? candidate + 1 : candidate;
 }
 }
 
@@ -34,16 +42,17 @@ ToneDrawerStateMachine::ToneDrawerStateMachine()
 
 void ToneDrawerStateMachine::suspend() {
     drawer_io::stopTone();
-    toneState = ToneState::Waiting;
+    toneState = currentState == DrawerState::Released ? ToneState::Complete : ToneState::Waiting;
 }
 
 void ToneDrawerStateMachine::reset() {
-    suspend();
+    drawer_io::stopTone();
     setState(DrawerState::Locked);
-    targetFrequency = randomTarget(); // Keep this target for the entire new run.
-    lastValue = 0;
-    currentFrequency = 0;
+    toneState = ToneState::Waiting;
+    targetFrequency = randomTarget();
+    currentFrequency = INITIAL_HZ;
     phaseStartTime = 0;
+    tone_encoder::reset();
     drawer_io::setReleased(drawer_io::Drawer::Wires, false);
     needsLock = false;
 }
@@ -53,62 +62,53 @@ void ToneDrawerStateMachine::tick() {
         drawer_io::setReleased(drawer_io::Drawer::Wires, false);
         needsLock = false;
     }
-    if (currentState == DrawerState::Released) {
-        return;
-    }
-    std::uint16_t value;
-    if (!drawer_io::readPotentiometer(value) || value > ADC_MAX) {
-        suspend();
-        return;
-    }
+    // Drain inputs in every phase. A press during the reference must not submit
+    // on entry to tuning, and holding the button must never count twice.
+    const auto input = tone_encoder::poll();
     const auto now = time_us_64();
-    const int change = static_cast<int>(value) - lastValue;
-    if (toneState == ToneState::Waiting || change >= POT_DEADBAND || change <= -POT_DEADBAND) {
-        drawer_io::stopTone();
-        lastValue = value;
-        currentFrequency = MIN_HZ + static_cast<unsigned int>(value) * (MAX_HZ - MIN_HZ) / ADC_MAX;
-        toneState = ToneState::Settling;
-        phaseStartTime = now;
-        return;
-    }
-    const auto elapsed = now - phaseStartTime;
     switch (toneState) {
-    case ToneState::Settling:
-        if (elapsed >= SETTLE_US) {
-            drawer_io::playTone(currentFrequency);
-            toneState = ToneState::PlayingCurrent;
-            phaseStartTime = now;
-        }
-        break;
-    case ToneState::PlayingCurrent:
-        if (elapsed >= TONE_US) {
-            drawer_io::stopTone();
-            toneState = ToneState::Gap;
-            phaseStartTime = now;
-        }
-        break;
-    case ToneState::Gap:
-        if (elapsed >= GAP_US) {
+    case ToneState::Waiting:
+        if (input.pressed) {
             drawer_io::playTone(targetFrequency);
-            toneState = ToneState::PlayingTarget;
             phaseStartTime = now;
+            toneState = ToneState::PlayingTarget;
         }
         break;
     case ToneState::PlayingTarget:
-        if (elapsed >= TONE_US) {
-            drawer_io::stopTone();
+        if (now - phaseStartTime >= TARGET_TONE_US) {
+            drawer_io::playTone(currentFrequency);
+            toneState = ToneState::Tuning;
+        }
+        break;
+    case ToneState::Tuning: {
+        // Use a wide signed intermediate so turns clamp rather than wrap.
+        auto adjusted = static_cast<std::int64_t>(currentFrequency) +
+                        static_cast<std::int64_t>(input.steps) * ENCODER_STEP_HZ;
+        if (adjusted < MIN_HZ) adjusted = MIN_HZ;
+        if (adjusted > MAX_HZ) adjusted = MAX_HZ;
+        const auto frequency = static_cast<unsigned int>(adjusted);
+        if (frequency != currentFrequency) {
+            currentFrequency = frequency;
+            drawer_io::playTone(currentFrequency);
+        }
+        if (input.pressed) {
             const int difference = static_cast<int>(currentFrequency) - static_cast<int>(targetFrequency);
             if (difference >= -static_cast<int>(MATCH_TOLERANCE_HZ) &&
                 difference <= static_cast<int>(MATCH_TOLERANCE_HZ)) {
+                drawer_io::stopTone();
                 drawer_io::setReleased(drawer_io::Drawer::Wires, true);
                 setState(DrawerState::Released);
+                toneState = ToneState::Complete;
+            } else {
+                targetFrequency = newTarget(targetFrequency);
+                drawer_io::playTone(targetFrequency);
+                phaseStartTime = now;
+                toneState = ToneState::PlayingTarget;
             }
-            // Stay here silently until the knob changes; do not repeat feedback.
-            toneState = ToneState::AwaitingAdjustment;
         }
         break;
-    case ToneState::Waiting:
-    case ToneState::AwaitingAdjustment:
+    }
+    case ToneState::Complete:
         break;
     }
 }

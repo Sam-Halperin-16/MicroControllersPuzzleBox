@@ -7,7 +7,6 @@
 
 namespace {
 constexpr unsigned int WIRE_ADC_GPIO = 26;
-constexpr unsigned int POT_ADC_GPIO = 27;
 constexpr unsigned int BUZZER_GPIO = 10;
 constexpr std::uint8_t BACKLIGHT_PIN = 10; // MCP23017 GPB2, active high.
 
@@ -16,7 +15,6 @@ bool readAdc(unsigned int gpio, std::uint16_t& value) {
     if (!initialized) {
         adc_init();
         adc_gpio_init(WIRE_ADC_GPIO);
-        adc_gpio_init(POT_ADC_GPIO);
         initialized = true;
     }
     adc_select_input(gpio - 26);
@@ -39,10 +37,6 @@ bool screwTouched(unsigned int screw) {
     // TODO: Read calibrated capacitive touch inputs, indexed 0 and 1.
     (void)screw;
     return false;
-}
-
-bool readPotentiometer(std::uint16_t& value) {
-    return readAdc(POT_ADC_GPIO, value);
 }
 
 bool readWireNetwork(std::uint16_t& value) {

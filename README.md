@@ -236,13 +236,91 @@ The firmware must distinguish actual route movements from incidental handling, s
 
 ### Tone matching
 
-The potentiometer controls the adjustable tone. The target tone is randomly chosen.
+The encoder's push-button starts the attempt and submits the player's match:
 
-Whenever the potentiometer changes and is then left stationary for a short settling period, play the **current tone based on potentiometer position, followed by the target tone**. If the current tone is within the matching threshold of the target, release the wire drawer.
+1. Press the encoder to play the randomly chosen target tone for **five seconds**.
+2. After playback, the adjustable tone starts playing continuously. Turn the
+   encoder to change its pitch.
+3. Press the encoder again to lock in the current pitch.
+4. A wrong match chooses a different random target and plays it for five seconds, then
+   returns to live tuning. A correct match silences the buzzer, releases the wire
+   drawer, and completes the puzzle until reset.
 
-A settling period of **200 ms is the owner's example**, not a fixed final tuning value. This period detects that adjustment has stopped; it is not a separate requirement to hold a matching tone for a longer duration.
+`ToneDrawerStateMachine` uses `Waiting → PlayingTarget → Tuning → Complete`,
+with a failed submission returning from `Tuning` to `PlayingTarget`. Turning or
+pressing during target playback is ignored. Button presses are debounced for
+30 ms; a held button produces one event. Nothing plays before the first press.
+Every wrong submission generates a target different from the preceding one.
+Session reset also randomizes the target.
 
-**Open:** Frequency range and mapping, threshold, tone duration and separation, potentiometer noise tolerance, target selection lifetime, and behavior when the knob changes during playback. In particular, decide when a randomly selected target is refreshed so it remains learnable during an attempt.
+Initial firmware tuning uses 400–1600 Hz, starts the player at 1000 Hz, adjusts
+10 Hz per full encoder detent, and accepts ±20 Hz only when submitted. Pitch
+clamps at the endpoints. A retry retains the player's previous pitch.
+These values and the five-second reference duration are configurable in
+`state_machines/matching_config.h`.
+
+`lib/tone_encoder.cpp` captures both edges of encoder A on GP2, B on GP3, and
+the active-low push-button on previously spare GP6 using GPIO interrupts,
+internal pull-ups, and common GND. Full detents accumulate in a signed counter;
+debounced button presses accumulate separately, including complete clicks
+between main-loop updates. `poll()` atomically drains the rotation count and one
+press at a time. Reset clears queued input and suppresses a held button until
+released. Counters saturate at their integer limits instead of wrapping.
+The firmware now assigns these encoder inputs to tone matching; the older
+combination-lock hardware description below still needs a final shared/dedicated
+encoder decision. GP27 potentiometer input is no longer used for tone matching.
+The buzzer remains GP10. Drawer actuation is still a hardware placeholder.
+
+Build with `cmake --build build`. Run the simulated encoder/state-machine test:
+
+```sh
+c++ -std=c++17 -Wall -Wextra -Werror -I tests/stubs -I . \
+    tests/tone_matching_test.cpp tests/fake_pico.cpp \
+    lib/gpio_interrupts.cpp lib/tone_encoder.cpp \
+    state_machines/drawers.cpp -o /tmp/puzzlebox-tone-test
+/tmp/puzzlebox-tone-test
+```
+
+The test checks the five-second boundary, explicit submission, retries, target
+replacement without changing the guess, pitch limits, button bounce/holds, encoder bounce, completion, reset,
+and suspension. Physical encoder direction and detent behavior require checking
+on the installed part; swap A/B if turning raises pitch in the wrong direction.
+
+### Shared GPIO interrupt handling
+
+`lib/gpio_interrupts.h` exposes `attach(gpio, edges, handler, context)` and
+`detach(gpio, handler, context)` for independent drivers. The dispatcher owns
+the Pico SDK's single GPIO callback on core 0 and routes only the registered
+rising/falling edges to each pin's handler. Both the IR receiver and encoder
+use it. The IR receiver still needs its existing GPIO and remote-command
+configuration before it can receive input.
+
+Register and consume events on core 0. Drivers configure their own GPIO modes
+and pulls; each pin has one handler/context owner. `attach()` returns false for
+an occupied pin or invalid arguments, so another subsystem cannot silently
+replace its handler. Reattaching the same owner updates its edge mask;
+`detach()` requires the matching owner and leaves other pins active. Encoder
+initialization returns false and rolls back its own subscriptions on conflict.
+
+Keep handlers short: record input and return. Perform sound, display, I²C, and
+puzzle transitions in the main loop. Shared counters are drained/reset with
+short interrupt-disabled sections. Main-loop waits no longer lose encoder
+edges by themselves; long interrupt-disabled sections or edges arriving faster
+than the hardware/handler can service them can still lose transitions.
+
+Run the interrupt routing and buffering tests:
+
+```sh
+c++ -std=c++17 -Wall -Wextra -Werror -I tests/stubs -I . \
+    tests/gpio_interrupts_test.cpp tests/fake_pico.cpp \
+    lib/gpio_interrupts.cpp lib/tone_encoder.cpp -o /tmp/puzzlebox-interrupt-test
+/tmp/puzzlebox-interrupt-test
+```
+
+These simulate 267 detents and two complete button clicks without a main-loop
+poll, concurrent traffic from another GPIO subscriber, pin ownership conflicts,
+partial turns, debounce, reset, and detach. Physical interrupt latency still
+requires validation on the installed board.
 
 ### Diagram tracing and wire linking
 
@@ -454,7 +532,7 @@ These are acceptance checks for prototypes, not claims that testing has already 
 | Touch | Either capacitive screw alone fails; simultaneous capacitive contact releases the magnet drawer |
 | Magnet | Placement at the left-face target starts the walking interaction; removal interrupts it and replacement starts the route over |
 | Walking | Top forward/rotation LEDs guide a route using accelerometer steps and gyroscope turns, with no spoken instructions or absolute starting orientation; both LEDs blink three times and stop on completion |
-| Tone | Changing then settling the pot plays current then random target tone; a within-threshold match releases the wire drawer |
+| Tone | Press plays the target for five seconds; turn tunes a live tone; press submits; a wrong match replays the target and a correct match releases the wire drawer |
 | Wiring | All four required pairs activate the backlight; each incomplete subset fails; extra links follow the chosen rule |
 | Hidden paper number | One enclosed LED reveals the thicker paper number outline through the paper-covered aperture; enclosure blocks light seepage |
 | Rotary | Three blink counts specify numbered positions; reversals commit entries; the fourth arrow guides the reversal that commits the third entry |

@@ -2,10 +2,11 @@
 #define DRAWERS_H
 
 #include "state_machine.h"
+#include "matching_config.h"
 #include <cstdint>
 
 enum class DrawerState { Locked, Released };
-enum class ToneState { Waiting, Settling, PlayingCurrent, Gap, PlayingTarget, AwaitingAdjustment };
+enum class ToneState { Waiting, PlayingTarget, Tuning, Complete };
 
 class TouchDrawerStateMachine : public StateMachine<DrawerState> {
 private:
@@ -20,8 +21,7 @@ class ToneDrawerStateMachine : public StateMachine<DrawerState> {
 private:
     ToneState toneState = ToneState::Waiting;
     bool needsLock = true;
-    std::uint16_t lastValue = 0;
-    unsigned int currentFrequency = 0;
+    unsigned int currentFrequency = matching_config::INITIAL_HZ;
     unsigned int targetFrequency;
     std::uint64_t phaseStartTime = 0;
 public:

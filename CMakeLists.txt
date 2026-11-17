@@ -44,6 +44,8 @@ add_executable(puzzle_box
     lib/gpio_expander.cpp
     lib/seven_segment.cpp
     lib/ir_receiver.cpp
+    lib/gpio_interrupts.cpp
+    lib/tone_encoder.cpp
     lib/drawer_io.cpp
     lib/accelerometer.cpp
     puzzle_box.cpp

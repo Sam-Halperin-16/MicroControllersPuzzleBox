@@ -1,4 +1,5 @@
 #include "ir_receiver.h"
+#include "gpio_interrupts.h"
 #include "pico/stdlib.h"
 #include "hardware/sync.h"
 
@@ -44,7 +45,7 @@ bool near(std::uint32_t duration, std::uint32_t expected, std::uint32_t toleranc
     return duration >= expected - tolerance && duration <= expected + tolerance;
 }
 
-void onEdge(unsigned int gpio, std::uint32_t events) {
+void onEdge(unsigned int gpio, std::uint32_t events, void*) {
     if (gpio != static_cast<unsigned int>(RECEIVER_GPIO) || !(events & GPIO_IRQ_EDGE_FALL)) {
         return;
     }
@@ -97,9 +98,7 @@ bool init() {
     gpio_init(RECEIVER_GPIO);
     gpio_set_dir(RECEIVER_GPIO, GPIO_IN);
     gpio_pull_up(RECEIVER_GPIO);
-    // This owns the Pico SDK's GPIO callback on this core.
-    gpio_set_irq_enabled_with_callback(RECEIVER_GPIO, GPIO_IRQ_EDGE_FALL, true, onEdge);
-    return true;
+    return gpio_interrupts::attach(RECEIVER_GPIO, GPIO_IRQ_EDGE_FALL, onEdge);
 }
 
 bool poll(Event& event) {
