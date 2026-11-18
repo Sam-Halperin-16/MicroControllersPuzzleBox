@@ -10,7 +10,7 @@ constexpr std::uint64_t BLINK_US = 500000;
 }
 
 ScreenStateMachine::ScreenStateMachine(const std::uint8_t code[4])
-    : StateMachine<ScreenState>(ScreenState::Stopwatch), startTime(time_us_64()) {
+    : StateMachine<ScreenState>(ScreenState::Begin), startTime(time_us_64()) {
     for (int i = 0; i < 4; ++i) {
         finalCode[i] = code[i];
     }
@@ -42,7 +42,7 @@ bool ScreenStateMachine::codeMatches() const {
     return true;
 }
 
-void ScreenStateMachine::showNumber(int number, bool visible) {
+void ScreenStateMachine::showNumber(int number, bool visible, bool colon) {
     if (!displayInitialized) {
         displayInitialized = seven_segment::init();
         if (!displayInitialized) {
@@ -51,7 +51,7 @@ void ScreenStateMachine::showNumber(int number, bool visible) {
     }
     if (number != displayedNumber &&
         seven_segment::set_number(number / 1000, number / 100 % 10,
-                                  number / 10 % 10, number % 10)) {
+                                  number / 10 % 10, number % 10, colon)) {
         displayedNumber = number;
     }
     if (visible != displayVisible && seven_segment::set_visible(visible)) {
@@ -71,19 +71,39 @@ void ScreenStateMachine::tick() {
     }
 
     switch (currentState) {
+    case ScreenState::Begin:
+        // 3 second countdown before the stopwatch starts. Display 3, 2, 1, then 00.
+        if (now - startTime < 3 * SECOND_US) {
+            showNumber(3 - (now - startTime) / SECOND_US, true, true);
+        } else {
+            showNumber(0, true, true);
+            setState(ScreenState::Stopwatch);
+            startTime = now;  // Reset the stopwatch start time.
+        }
+        break;
     case ScreenState::Stopwatch: {
         const auto seconds = (now - startTime) / SECOND_US;
-        showNumber((seconds / 60 % 100) * 100 + seconds % 60);
+        showNumber((seconds / 60 % 100) * 100 + seconds % 60, true, true);
         break;
     }
     case ScreenState::CodeEntry:
         showNumber(enteredCode[0] * 1000 + enteredCode[1] * 100 +
                    enteredCode[2] * 10 + enteredCode[3],
-                   (now - lastInputTime) / BLINK_US % 2 == 0);
+                   (now - lastInputTime) / BLINK_US % 2 == 0,
+                   false);
         break;
     case ScreenState::Countdown:
         // Round up so the display starts at 0030 and stays nonzero until expiry.
-        showNumber((COUNTDOWN_US - (now - countdownStartTime) + SECOND_US - 1) / SECOND_US);
+        // showNumber((COUNTDOWN_US - (now - countdownStartTime) + SECOND_US - 1) / SECOND_US);
+        {
+            int number = (COUNTDOWN_US - (now - countdownStartTime) + SECOND_US - 1) / SECOND_US;
+            if (displayedNumber != number) {
+                seven_segment::set_number(
+                    // Dash, dash, 10s, 1s
+                    11, 11, number / 10 % 10, number % 10,
+                    true);
+            }
+        }
         break;
     case ScreenState::Completed:
         showNumber(8888);

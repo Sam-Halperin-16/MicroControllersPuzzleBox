@@ -13,7 +13,7 @@ class MorseLedsStateMachine : public StateMachine<MorseLedsState> {
 protected:
     // Start time
     unsigned long startTime;
-    void update_leds(std::uint16_t morseCode, std::uint8_t currentBit);
+    void update_leds(std::uint8_t letter, std::uint8_t currentBit);
 public:
     MorseLedsStateMachine();
     void tick() override;

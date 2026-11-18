@@ -2,10 +2,11 @@
 #include "gpio_interrupts.h"
 #include "pico/stdlib.h"
 #include "hardware/sync.h"
+#include <cstdio>
 
 namespace {
 // TODO: Set the demodulating, active-low NEC receiver's GPIO number.
-constexpr int RECEIVER_GPIO = -1;
+constexpr int RECEIVER_GPIO = 4;
 
 struct ButtonMapping {
     int command;
@@ -16,19 +17,19 @@ struct ButtonMapping {
 // TODO: Replace -1 with each button's NEC command byte (0x00..0xFF).
 // Unconfigured entries never match. Repeat frames do not enter extra digits.
 constexpr ButtonMapping BUTTONS[] = {
-    {-1, ir_receiver::Button::Digit, 0},
-    {-1, ir_receiver::Button::Digit, 1},
-    {-1, ir_receiver::Button::Digit, 2},
-    {-1, ir_receiver::Button::Digit, 3},
-    {-1, ir_receiver::Button::Digit, 4},
-    {-1, ir_receiver::Button::Digit, 5},
-    {-1, ir_receiver::Button::Digit, 6},
-    {-1, ir_receiver::Button::Digit, 7},
-    {-1, ir_receiver::Button::Digit, 8},
-    {-1, ir_receiver::Button::Digit, 9},
-    {-1, ir_receiver::Button::Ok, 0},
-    {-1, ir_receiver::Button::Hash, 0},
-    {-1, ir_receiver::Button::Star, 0}
+    {0x19, ir_receiver::Button::Digit, 0},
+    {0x45, ir_receiver::Button::Digit, 1},
+    {0x46, ir_receiver::Button::Digit, 2},
+    {0x47, ir_receiver::Button::Digit, 3},
+    {0x44, ir_receiver::Button::Digit, 4},
+    {0x40, ir_receiver::Button::Digit, 5},
+    {0x43, ir_receiver::Button::Digit, 6},
+    {0x07, ir_receiver::Button::Digit, 7},
+    {0x15, ir_receiver::Button::Digit, 8},
+    {0x09, ir_receiver::Button::Digit, 9},
+    {0x1C, ir_receiver::Button::Ok, 0},
+    {0x0D, ir_receiver::Button::Hash, 0},
+    {0x16, ir_receiver::Button::Star, 0}
 };
 
 // Small single-core interrupt-to-main-loop queue. Drop new presses if full.
@@ -117,6 +118,7 @@ bool poll(Event& event) {
                 return true;
             }
         }
+        printf("ir_receiver::poll() - Unrecognized command 0x%02X\n", command);
     }
 }
 } // namespace ir_receiver

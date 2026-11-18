@@ -2,6 +2,7 @@
 #include "matching_config.h"
 #include "lib/drawer_io.h"
 #include "pico/time.h"
+#include <cstdio>
 
 void WireMatchingStateMachine::reset() {
     setState(WireMatchingState::Waiting);
@@ -15,7 +16,7 @@ void WireMatchingStateMachine::tick() {
         reset();
     }
     if (currentState == WireMatchingState::Solved) {
-        return; // Keep the earned clue lit until the session is reset.
+        // return; // Keep the earned clue lit until the session is reset.
     }
 
     using namespace matching_config;

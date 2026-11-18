@@ -4,6 +4,7 @@
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
 #include "pico/stdlib.h"
+#include <cstdio>
 
 namespace {
 constexpr unsigned int WIRE_ADC_GPIO = 26;
@@ -29,14 +30,13 @@ void setReleased(Drawer drawer, bool released) {
     // TODO: Configure each servo GPIO and its calibrated locked/released PWM
     // positions. Command the latch position without waiting for servo travel.
     // Released means commanded open; there are no drawer position sensors yet.
+    // Released = 140 deg
+    // Locked = 50 deg
+    printf("drawer_io::setReleased() - Drawer: %s, Released: %s\n",
+           drawer == Drawer::Magnet ? "Magnet" : "Wires",
+           released ? "true" : "false");
     (void)drawer;
     (void)released;
-}
-
-bool screwTouched(unsigned int screw) {
-    // TODO: Read calibrated capacitive touch inputs, indexed 0 and 1.
-    (void)screw;
-    return false;
 }
 
 bool readWireNetwork(std::uint16_t& value) {

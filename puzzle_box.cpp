@@ -8,6 +8,8 @@
  */
 #include "state_machines/system.h"
 #include "lib/ir_receiver.h"
+#include "globals.h"
+#include "pico/stdlib.h"
 
  /**
   * State machines for each of the 4 puzzles:
@@ -18,6 +20,8 @@
 static SystemStateMachine systemStateMachine;
 
 int main() {
+    stdio_init_all();  // USB serial diagnostics; does not wait for a computer.
+    gpio_expander.init();
 
     systemStateMachine.setState(SystemState::Active);
     ir_receiver::init();
@@ -28,6 +32,7 @@ int main() {
         while (ir_receiver::poll(event)) {
             systemStateMachine.onIrEvent(event);
         }
+        gpio_expander.update();
     }
 
     // return 0;

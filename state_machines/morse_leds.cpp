@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "pico/stdlib.h"
 #include "globals.h"
+#include <cstdio>
 
 MorseLedsStateMachine::MorseLedsStateMachine() : StateMachine<MorseLedsState>(MorseLedsState::Off) {
     startTime = time_us_32();
@@ -43,15 +44,14 @@ namespace MorseCodeData {
 void MorseLedsStateMachine::tick() {
     // Implement the Morse code blinking logic here
     if (currentState == MorseLedsState::Blinking) {
+        // Calculate the elapsed time since the last state change
+        std::uint32_t elapsedTime = time_us_32() - startTime;
+        std::uint32_t elapsedDots = elapsedTime / MorseCodeData::DOT_DURATION;
         for (std::uint8_t currentLetter = 0; currentLetter < 5; currentLetter++) {
-            // Update the current time
-            std::uint32_t currentTime = time_us_32();
-            // Calculate the elapsed time since the last state change
-            std::uint32_t elapsedTime = currentTime - startTime;
             // Determine the current position in the Morse code sequence
-            std::uint8_t currentBit = (elapsedTime / MorseCodeData::DOT_DURATION) % MorseCodeData::morseCodeLengths[currentLetter];
+            std::uint8_t currentBit = elapsedDots % MorseCodeData::morseCodeLengths[currentLetter];
             // Update the LED states based on the current bit
-            update_leds(MorseCodeData::morseCode[currentLetter], currentBit);
+            update_leds(currentLetter, currentBit);
         }
     } else if (currentState == MorseLedsState::Off) {
         for (std::uint8_t currentLetter = 0; currentLetter < 5; currentLetter++) {
@@ -60,9 +60,14 @@ void MorseLedsStateMachine::tick() {
     }
 }
 
-void MorseLedsStateMachine::update_leds(std::uint16_t morseCode, std::uint8_t currentBit) {
+void MorseLedsStateMachine::update_leds(std::uint8_t letter, std::uint8_t currentBit) {
     // Update the LED state based on the current bit of the Morse code
-    std::uint8_t bit = (morseCode >> (MorseCodeData::morseCodeLengths[currentBit] - 1 - currentBit)) & 0x01;
-    std::uint8_t ledId = MorseCodeData::LED_ID[currentBit];
-    gpio_expander.setPin(ledId, bit != 0);
+    const std::uint8_t shift =
+        MorseCodeData::morseCodeLengths[letter] - 1 - currentBit;
+
+    const bool on =
+        ((MorseCodeData::morseCode[letter] >> shift) & 1u) != 0;
+
+    gpio_expander.setPin(MorseCodeData::LED_ID[letter], on);
+
 }

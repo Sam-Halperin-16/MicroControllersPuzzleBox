@@ -6,7 +6,7 @@
 // in main.cpp. The driver manages one display and is called from one core.
 namespace seven_segment {
 
-// Initialize the module and display 0000. Call before set_number().
+// Initialize the module and display 0000 with the colon off. Call before set_number().
 // Pin arguments are GPIO numbers, NOT physical header pin numbers.
 // Brightness: 0 = dimmest ON setting, 7 = brightest.
 // Returns false for invalid settings or a missing hardware acknowledgement.
@@ -15,11 +15,14 @@ bool init(unsigned int clk_pin = 14, unsigned int dio_pin = 15,
 
 // Display four INDEPENDENT integer digits, ordered LEFT to RIGHT.
 // Example: set_number(0, 1, 2, 3) displays 0123, including the leading zero.
+// Set colon to true to light the center separator: (0, 1, 2, 3, true) shows 01:23.
+// The colon defaults to off on each call.
 // Each argument must be 0..9. Invalid input leaves the display unchanged.
 // Returns false if uninitialized, invalid, or the display does not ACK.
-bool set_number(int digit1, int digit2, int digit3, int digit4);
+bool set_number(int digit1, int digit2, int digit3, int digit4,
+                bool colon = false);
 
-// Blank or restore the display without changing its digits or brightness.
+// Blank or restore the display without changing its digits, colon, or brightness.
 bool set_visible(bool visible);
 
 }  // namespace seven_segment

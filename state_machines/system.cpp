@@ -2,6 +2,12 @@
 #include "morse_leds.h"
 #include "pico/rand.h"
 #include "globals.h"
+#include <cstdio>
+#include "lib/drawer_io.h"
+#include "lib/touch_sensor.h"
+
+// TOUCH1_GPIO
+// TOUCH2_GPIO
 
 void SystemStateMachine::generateFinalCode() {
     // Shake/Vibrate
@@ -13,17 +19,17 @@ void SystemStateMachine::generateFinalCode() {
     // Backlight code
     // 3
     finalCode[2] = 3;
-    // Spoken
-    // 0-9
-    finalCode[3] = get_rand_32() % 10; // Random number between 0 and 9
+    // Binary
+    // 1-7
+    finalCode[3] = get_rand_32() % 7 + 1; // Random number between 1 and 7
 }
 
 SystemStateMachine::SystemStateMachine() : StateMachine<SystemState>(SystemState::Idle) {
     generateFinalCode();
-    screenStateMachine = new ScreenStateMachine(finalCode);
+    touch_sensor_init(TOUCH1_GPIO, TOUCH2_GPIO);
 
     // Initialize the active state machines to a list of active state machines
-    // Morse LEDs
+    screenStateMachine = new ScreenStateMachine(finalCode);
     morseLedsStateMachine = new MorseLedsStateMachine();
     shakeVibrateStateMachine = new ShakeVibrateStateMachine(finalCode[0]);
     touchDrawerStateMachine = new TouchDrawerStateMachine();
@@ -36,6 +42,7 @@ void SystemStateMachine::tick() {
     if (currentState != SystemState::Active && currentState != SystemState::Frozen) {
         return;
     }
+    // drawer_io::setWireBacklight(true);
     // An incorrect-code timeout blocks IR entry, not the independent puzzles.
     screenStateMachine->tick();
     if (screenStateMachine->getState() == ScreenState::Completed) {
@@ -95,6 +102,8 @@ void SystemStateMachine::reset() {
 }
 
 void SystemStateMachine::onIrEvent(const ir_receiver::Event& event) {
+    printf("SystemStateMachine::onIrEvent() - Button: %d, Digit: %d\n",
+           static_cast<int>(event.button), event.digit);
     // Reset is available in every system state, including completed/lockout.
     if (event.button == ir_receiver::Button::Hash) {
         if (resetSequence == 2) {

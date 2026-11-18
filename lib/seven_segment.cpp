@@ -6,10 +6,13 @@
 
 namespace {
 // TM1637 segment bits: a,b,c,d,e,f,g occupy bits 0 through 6.
-// Bit 7 controls a decimal point/colon on some modules; leave it off here.
-constexpr uint8_t SEGMENTS[10] = {
+// On the HW-069, bit 7 of the second digit controls the center colon.
+constexpr uint8_t COLON_SEGMENT = 0x80;
+constexpr uint8_t SEGMENTS[12] = {
     0x3F, 0x06, 0x5B, 0x4F, 0x66,
-    0x6D, 0x7D, 0x07, 0x7F, 0x6F
+    0x6D, 0x7D, 0x07, 0x7F, 0x6F,
+    0x00,  // Blank (not a valid digit, but useful for clearing).
+    0x40   // Dash (not a valid digit, but useful for error display).
 };
 constexpr uint32_t BIT_DELAY_US = 10;
 unsigned int clk_gpio = 14;
@@ -99,11 +102,13 @@ bool send_bytes(const uint8_t* bytes, std::size_t length) {
     return true;
 }
 
-bool write_digits(int d1, int d2, int d3, int d4) {
+bool write_digits(int d1, int d2, int d3, int d4, bool colon) {
     const uint8_t write_mode[] = {0x40};  // Normal write, auto-increment.
     const uint8_t data[] = {
         0xC0,  // Begin at first digit; subsequent bytes select the next digit.
-        SEGMENTS[d1], SEGMENTS[d2], SEGMENTS[d3], SEGMENTS[d4]
+        SEGMENTS[d1],
+        static_cast<uint8_t>(SEGMENTS[d2] | (colon ? COLON_SEGMENT : 0)),
+        SEGMENTS[d3], SEGMENTS[d4]
     };
     return send_bytes(write_mode, sizeof(write_mode)) &&
            send_bytes(data, sizeof(data));
@@ -129,7 +134,7 @@ bool init(unsigned int clk_pin, unsigned int dio_pin, int brightness) {
     dio_release();
     pause_bus();
 
-    if (!write_digits(0, 0, 0, 0)) {
+    if (!write_digits(0, 0, 0, 0, false)) {
         return false;
     }
     // 0x88 = display ON; low three bits select brightness.
@@ -149,16 +154,16 @@ bool set_visible(bool visible) {
     return send_bytes(control, sizeof(control));
 }
 
-bool set_number(int digit1, int digit2, int digit3, int digit4) {
+bool set_number(int digit1, int digit2, int digit3, int digit4, bool colon) {
     if (!initialized) {
         return false;
     }
     const int digits[] = {digit1, digit2, digit3, digit4};
     for (int digit : digits) {
-        if (digit < 0 || digit > 9) {
+        if (digit < 0 || digit > 11) {
             return false;  // Validate ALL digits before touching the bus.
         }
     }
-    return write_digits(digit1, digit2, digit3, digit4);
+    return write_digits(digit1, digit2, digit3, digit4, colon);
 }
 }  // namespace seven_segment

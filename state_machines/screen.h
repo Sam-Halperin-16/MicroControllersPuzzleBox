@@ -5,6 +5,7 @@
 #include <cstdint>
 
 enum class ScreenState {
+    Begin,
     Stopwatch,
     CodeEntry,
     Countdown,
@@ -26,7 +27,7 @@ private:
 
     void clearEntry();
     bool codeMatches() const;
-    void showNumber(int number, bool visible = true);
+    void showNumber(int number, bool visible = true, bool colon = false);
 
 public:
     explicit ScreenStateMachine(const std::uint8_t code[4]);

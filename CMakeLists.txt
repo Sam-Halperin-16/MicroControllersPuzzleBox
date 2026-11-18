@@ -48,6 +48,7 @@ add_executable(puzzle_box
     lib/tone_encoder.cpp
     lib/drawer_io.cpp
     lib/accelerometer.cpp
+    lib/touch_sensor.cpp
     puzzle_box.cpp
     state_machines/morse_leds.cpp
     state_machines/shake_vibrate.cpp

@@ -4,6 +4,8 @@
 #include "pico/time.h"
 #include "matching_config.h"
 #include "lib/tone_encoder.h"
+#include <cstdio>
+#include "lib/touch_sensor.h"
 
 using namespace matching_config;
 
@@ -30,8 +32,9 @@ void TouchDrawerStateMachine::tick() {
     if (needsLock) {
         reset();
     }
-    if (currentState == DrawerState::Locked &&
-        drawer_io::screwTouched(0) && drawer_io::screwTouched(1)) {
+    
+    if (currentState == DrawerState::Locked && touch_sensor_tick(TOUCH1_GPIO, TOUCH2_GPIO)) {
+        printf("TouchDrawerStateMachine::tick() - Both screws touched, unlocking drawer.\n");
         drawer_io::setReleased(drawer_io::Drawer::Magnet, true);
         setState(DrawerState::Released);
     }
@@ -69,6 +72,7 @@ void ToneDrawerStateMachine::tick() {
     switch (toneState) {
     case ToneState::Waiting:
         if (input.pressed) {
+            printf("ToneDrawerStateMachine::tick() - Button pressed, starting tone matching.\n");
             drawer_io::playTone(targetFrequency);
             phaseStartTime = now;
             toneState = ToneState::PlayingTarget;
@@ -90,8 +94,14 @@ void ToneDrawerStateMachine::tick() {
         if (frequency != currentFrequency) {
             currentFrequency = frequency;
             drawer_io::playTone(currentFrequency);
+            phaseStartTime = now;
+        } else if (now - phaseStartTime >= TARGET_TONE_US) {
+            // stop
+            printf("ToneDrawerStateMachine::tick() - No adjustment for %u us, stopping tone.\n", TARGET_TONE_US);
+            drawer_io::stopTone();
         }
         if (input.pressed) {
+            printf("ToneDrawerStateMachine::tick() - Button pressed, checking frequency match.\n");
             const int difference = static_cast<int>(currentFrequency) - static_cast<int>(targetFrequency);
             if (difference >= -static_cast<int>(MATCH_TOLERANCE_HZ) &&
                 difference <= static_cast<int>(MATCH_TOLERANCE_HZ)) {
