@@ -22,8 +22,9 @@ void ShakeVibrateStateMachine::tick() {
         // }
         bool shaking = accelerometer_tick();
         if (shaking){
-            printf("Vibrate");
+            // printf("Vibrate");
             setState(ShakeVibrateState::Vibrating);
+            vibrateStartTime = time_us_32();
         }
     
     }
