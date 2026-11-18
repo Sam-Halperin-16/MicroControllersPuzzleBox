@@ -67,6 +67,7 @@ void ScreenStateMachine::tick() {
     }
     if (currentState == ScreenState::Countdown && now - countdownStartTime >= COUNTDOWN_US) {
         clearEntry();
+        startTime = now;  // Reset the stopwatch start time.
         setState(ScreenState::Stopwatch);
     }
 
@@ -106,7 +107,11 @@ void ScreenStateMachine::tick() {
         }
         break;
     case ScreenState::Completed:
-        showNumber(8888);
+        // show total time
+        {
+            const auto seconds = (lastInputTime - startTime) / SECOND_US;
+            showNumber((seconds / 60 % 100) * 100 + seconds % 60, true, true);
+        }
         break;
     }
 }
