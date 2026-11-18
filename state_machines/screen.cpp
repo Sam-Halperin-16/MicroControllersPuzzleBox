@@ -4,7 +4,7 @@
 
 namespace {
 constexpr std::uint64_t SECOND_US = 1000000;
-constexpr std::uint64_t ENTRY_TIMEOUT_US = 3 * SECOND_US;
+constexpr std::uint64_t ENTRY_TIMEOUT_US = 5 * SECOND_US;
 constexpr std::uint64_t COUNTDOWN_US = 30 * SECOND_US;
 constexpr std::uint64_t BLINK_US = 500000;
 }

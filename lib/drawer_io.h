@@ -3,10 +3,12 @@
 
 #include <cstdint>
 
-// Main-loop hardware access. Drawer actuators and touch inputs remain templates.
+// Main-loop hardware access for drawer actuators and puzzle peripherals.
 namespace drawer_io {
 enum class Drawer { Magnet, Wires };
 
+// Command 140 degrees to release or 50 degrees to lock, without waiting for travel.
+// Magnet servo: GP7; wire drawer servo: GP8. PWM continues to hold the position.
 void setReleased(Drawer drawer, bool released);
 bool screwTouched(unsigned int screw);
 // Return false when no valid sample is available; samples are 0..4095.

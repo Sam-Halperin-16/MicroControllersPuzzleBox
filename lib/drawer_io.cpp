@@ -10,6 +10,35 @@ namespace {
 constexpr unsigned int WIRE_ADC_GPIO = 26;
 constexpr unsigned int BUZZER_GPIO = 10;
 constexpr std::uint8_t BACKLIGHT_PIN = 10; // MCP23017 GPB2, active high.
+constexpr unsigned int MAGNET_SERVO_GPIO = 7;
+constexpr unsigned int WIRES_SERVO_GPIO = 8;
+constexpr unsigned int SERVO_PERIOD_US = 20000; // 50 Hz.
+// Nominal 0..180 degree pulse range; calibrate for the installed servos.
+constexpr unsigned int SERVO_MIN_PULSE_US = 500;
+constexpr unsigned int SERVO_MAX_PULSE_US = 2500;
+constexpr unsigned int SERVO_RELEASED_DEGREES = 140;
+constexpr unsigned int SERVO_LOCKED_DEGREES = 50;
+
+void setServoPosition(unsigned int gpio, unsigned int degrees, bool& initialized) {
+    const auto pulseUs = SERVO_MIN_PULSE_US +
+        ((SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US) * degrees + 90) / 180;
+    const auto slice = pwm_gpio_to_slice_num(gpio);
+    if (!initialized) {
+        // A 1 MHz counter makes each PWM count one microsecond.
+        // GP7 and GP8 use separate slices, also separate from the GP10 buzzer.
+        auto config = pwm_get_default_config();
+        pwm_config_set_clkdiv(&config, clock_get_hz(clk_sys) / 1000000.0f);
+        pwm_config_set_wrap(&config, SERVO_PERIOD_US - 1);
+        pwm_init(slice, &config, false);
+        // Load the target before connecting and enabling the PWM output.
+        pwm_set_gpio_level(gpio, pulseUs);
+        gpio_set_function(gpio, GPIO_FUNC_PWM);
+        pwm_set_enabled(slice, true);
+        initialized = true;
+    } else {
+        pwm_set_gpio_level(gpio, pulseUs);
+    }
+}
 
 bool readAdc(unsigned int gpio, std::uint16_t& value) {
     static bool initialized = false;
@@ -27,16 +56,23 @@ bool readAdc(unsigned int gpio, std::uint16_t& value) {
 
 namespace drawer_io {
 void setReleased(Drawer drawer, bool released) {
-    // TODO: Configure each servo GPIO and its calibrated locked/released PWM
-    // positions. Command the latch position without waiting for servo travel.
+    static bool magnetInitialized = false;
+    static bool wiresInitialized = false;
+    const auto degrees = released ? SERVO_RELEASED_DEGREES : SERVO_LOCKED_DEGREES;
+    switch (drawer) {
+    case Drawer::Magnet:
+        setServoPosition(MAGNET_SERVO_GPIO, degrees, magnetInitialized);
+        break;
+    case Drawer::Wires:
+        setServoPosition(WIRES_SERVO_GPIO, degrees, wiresInitialized);
+        break;
+    default:
+        return;
+    }
     // Released means commanded open; there are no drawer position sensors yet.
-    // Released = 140 deg
-    // Locked = 50 deg
     printf("drawer_io::setReleased() - Drawer: %s, Released: %s\n",
            drawer == Drawer::Magnet ? "Magnet" : "Wires",
            released ? "true" : "false");
-    (void)drawer;
-    (void)released;
 }
 
 bool readWireNetwork(std::uint16_t& value) {
