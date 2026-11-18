@@ -121,7 +121,7 @@ bool accelerometer_tick(void) {
         runningAvg = runningAvg + magnitude * diff_ms - avg * diff_ms;
         
         bool shaking = false;
-        if (runningAvg >= 2500.0f){
+        if (runningAvg >= 500.0f){ //should be 2500
             shaking = true;
                 // printf("Avg: %.2f \n",runningAvg);
         }
